@@ -1,0 +1,131 @@
+﻿using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+
+class UVPadder
+{
+    static void Main()
+    {
+        string inputPath = "input2.png";
+        string outputPath = "output2.png";
+
+        using (Bitmap inputBitmap = new Bitmap(inputPath))
+        {
+            int width = inputBitmap.Width;
+            int height = inputBitmap.Height;
+
+            using (Bitmap outputBitmap = new Bitmap(width, height))
+            {
+                // Copy the input bitmap to the output bitmap
+                using (Graphics g = Graphics.FromImage(outputBitmap))
+                {
+                    g.DrawImage(inputBitmap, 0, 0, width, height);
+                }
+
+                // Apply dilation with a maximum of 32 steps
+                ApplyDilation(inputBitmap, outputBitmap, 32);
+
+                // Save the result
+                outputBitmap.Save(outputPath, ImageFormat.Png);
+            }
+        }
+
+        Console.WriteLine("Edge padding added successfully.");
+    }
+
+    static void ApplyDilation(Bitmap inputBitmap, Bitmap outputBitmap, int maxSteps)
+    {
+        int width = inputBitmap.Width;
+        int height = inputBitmap.Height;
+        bool pixelsChanged;
+
+        for (int step = 0; step < maxSteps; step++)
+        {
+            pixelsChanged = false;
+            using (Bitmap tempBitmap = new Bitmap(width, height))
+            {
+                using (Graphics g = Graphics.FromImage(tempBitmap))
+                {
+                    g.DrawImage(outputBitmap, 0, 0, width, height);
+                }
+
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        Color pixel = outputBitmap.GetPixel(x, y);
+
+                        if (pixel.A == 0) // Transparent pixel
+                        {
+                            Color averageColor = GetAverageNeighborColor(outputBitmap, x, y);
+
+                            if (averageColor.A > 0)
+                            {
+                                tempBitmap.SetPixel(x, y, averageColor);
+                                pixelsChanged = true;
+                            }
+                        }
+                    }
+                }
+
+                // Copy tempBitmap back to outputBitmap
+                using (Graphics g = Graphics.FromImage(outputBitmap))
+                {
+                    g.DrawImage(tempBitmap, 0, 0, width, height);
+                }
+            }
+
+            if (!pixelsChanged)
+            {
+                break;
+            }
+        }
+    }
+
+    static Color GetAverageNeighborColor(Bitmap bitmap, int x, int y)
+    {
+        int width = bitmap.Width;
+        int height = bitmap.Height;
+
+        int totalR = 0;
+        int totalG = 0;
+        int totalB = 0;
+        int totalA = 0;
+        int count = 0;
+
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int neighborX = x + dx;
+                int neighborY = y + dy;
+
+                if (neighborX >= 0 && neighborX < width && neighborY >= 0 && neighborY < height)
+                {
+                    Color neighborColor = bitmap.GetPixel(neighborX, neighborY);
+
+                    if (neighborColor.A > 0)
+                    {
+                        totalR += neighborColor.R;
+                        totalG += neighborColor.G;
+                        totalB += neighborColor.B;
+                        totalA += neighborColor.A;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        if (count > 0)
+        {
+            int averageR = totalR / count;
+            int averageG = totalG / count;
+            int averageB = totalB / count;
+            int averageA = totalA / count;
+
+            return Color.FromArgb(averageA, averageR, averageG, averageB);
+        }
+
+        return Color.Transparent;
+    }
+}
